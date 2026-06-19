@@ -378,6 +378,6 @@ The technical lessons were:
 
 The final verified leaderboard score was a rank-1 average proxy cost of 0.9507 with zero hard-macro overlaps. The technical process behind that score was straightforward in principle: propose broadly, score exactly, accept carefully, and validate across the full benchmark suite.
 
-ArchGen, the team behind this result, is built by **Naveen Venkat**, **Hariharan Ayappane**, and **Jishnu Madhav**. Visit [archgen.tech](https://archgen.tech/) for more details.
+The team behind the result: **Naveen Venkat**, **Hariharan Ayappane**, and **Jishnu Madhav**. Visit [ArchGen.tech](https://archgen.tech/) for more details.
 
 _Disclaimer: This article was written with the help of AI._
