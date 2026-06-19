@@ -24,7 +24,7 @@
     </main>
 
     <script>
-      const markdownUrl = "article.md?v=aa72e23";
+      const markdownUrl = "article.md?v=team-footer";
 
       function escapeHtml(value) {
         return value
@@ -190,7 +190,9 @@
             paragraph.push(bodyLines[index].trim());
             index += 1;
           }
-          blocks.push(`<p>${renderInline(paragraph.join(" "))}</p>`);
+          const paragraphText = paragraph.join(" ");
+          const paragraphClass = paragraphText.includes("Disclaimer:") ? ' class="disclaimer"' : "";
+          blocks.push(`<p${paragraphClass}>${renderInline(paragraphText)}</p>`);
         }
 
         return blocks.join("\n").replace(/\n<section /g, "\n</section>\n<section ") + "\n</section>";
