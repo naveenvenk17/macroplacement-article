@@ -2,15 +2,11 @@
 
 _A technical write-up of the approach behind our verified rank-1 score on the IBM macro-placement benchmarks._
 
-_This article is backed by the official contest repository, our experiment dashboard, and the verified leaderboard artifact linked below._
-
-Partcl and Hudson River Trading ran the Macro Placement Challenge to evaluate macro placement systems on the IBM benchmark suite. The objective was to generate legal placements with the lowest average proxy cost across the designs, with zero hard-macro overlaps and a fixed runtime budget.
+Partcl (backed by Khosla Ventures) and Hudson River Trading ran the Macro Placement Challenge to evaluate macro placement systems on the IBM benchmark suite. The objective was to generate legal placements with the lowest average proxy cost across the designs, with zero hard-macro overlaps and a fixed runtime budget.
 
 Our submission ranked first on the verified leaderboard with an average proxy cost of 0.9507 and zero hard-macro overlaps. This article documents how we started, what we tried, and how the final approach evolved.
 
-Official contest repository: [partcleda/macro-place-challenge-2026](https://github.com/partcleda/macro-place-challenge-2026). Code and experiment dashboard: [MP-score-dashboard](https://github.com/naveenvenk17/MP-score-dashboard/tree/main).
-
-We started with a basic macroplacer, then built an auto-research harness, exact proxy evaluation, multi-start search, congestion-weighted repair, GPU-accelerated candidate ranking, Xplace-RA route-aware seeds, and Triton experiments. The rest of this article is a technical account of that evolution.
+Official contest repository: [partcleda/macro-place-challenge-2026](https://github.com/partcleda/macro-place-challenge-2026).
 
 ![Leaderboard rank 1](substack_assets/leaderboard_rank1.png)
 
@@ -381,3 +377,5 @@ The technical lessons were:
 - Match the scorer's numerical precision before claiming zero overlaps.
 
 The final verified leaderboard score was a rank-1 average proxy cost of 0.9507 with zero hard-macro overlaps. The technical process behind that score was straightforward in principle: propose broadly, score exactly, accept carefully, and validate across the full benchmark suite.
+
+Disclaimer: This article was written with the help of AI.
