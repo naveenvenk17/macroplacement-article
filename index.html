@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ranked First in the Partcl and Hudson River Trading Macro Placement Challenge</title>
+    <meta
+      name="description"
+      content="A technical article on ranking first in the Partcl and Hudson River Trading Macro Placement Challenge with exact scoring, auto-research, congestion-first optimization, GPU acceleration, Xplace, and Triton."
+    />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="article-header">
+        <h1 id="article-title">Ranked First in the Partcl and Hudson River Trading Macro Placement Challenge</h1>
+        <p class="subhead" id="article-subtitle"></p>
+      </header>
+
+      <article id="article-content">
+        <p>Loading article...</p>
+      </article>
+    </main>
+
+    <script>
+      const markdownUrl = "article.md";
+
+      function escapeHtml(value) {
+        return value
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function slugify(value) {
+        return value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+      }
+
+      function renderInline(value) {
+        return escapeHtml(value)
+          .replace(
+            /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+            '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+          )
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/_([^_]+)_/g, "<em>$1</em>");
+      }
+
+      function imageSrc(src) {
+        return src.replace(
+          /^D:\/startup\/MP-contest\/docs\/substack_assets\//,
+          "substack_assets/"
+        );
+      }
+
+      function renderMarkdown(markdown) {
+        const lines = markdown.split(/\r?\n/);
+        const titleLine = lines.find((line) => line.startsWith("# "));
+        const subtitleLine = lines.find((line) => /^_.*_$/.test(line.trim()));
+        const title = titleLine ? titleLine.replace(/^#\s+/, "").trim() : "Article";
+        const subtitle = subtitleLine
+          ? subtitleLine.trim().replace(/^_/, "").replace(/_$/, "")
+          : "";
+        const bodyLines = lines.slice(4);
+
+        document.title = title;
+        document.getElementById("article-title").textContent = title;
+        document.getElementById("article-subtitle").textContent = subtitle;
+
+        const blocks = [];
+        let index = 0;
+
+        while (index < bodyLines.length) {
+          const line = bodyLines[index];
+
+          if (!line.trim()) {
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("## ")) {
+            const text = line.replace(/^##\s+/, "").trim();
+            blocks.push(`<section id="${slugify(text)}"><h2>${renderInline(text)}</h2>`);
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("```")) {
+            const codeLines = [];
+            index += 1;
+            while (index < bodyLines.length && !bodyLines[index].startsWith("```")) {
+              codeLines.push(bodyLines[index]);
+              index += 1;
+            }
+            if (index < bodyLines.length) index += 1;
+            blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+            continue;
+          }
+
+          if (/^!\[/.test(line)) {
+            const match = line.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+            if (match) {
+              blocks.push(
+                `<figure><img src="${imageSrc(match[2])}" alt="${escapeHtml(match[1])}" /></figure>`
+              );
+            }
+            index += 1;
+            continue;
+          }
+
+          if (
+            line.includes("|") &&
+            index + 1 < bodyLines.length &&
+            /^\s*\|?\s*:?-{3,}/.test(bodyLines[index + 1])
+          ) {
+            const rows = [];
+            while (
+              index < bodyLines.length &&
+              bodyLines[index].includes("|") &&
+              bodyLines[index].trim()
+            ) {
+              rows.push(bodyLines[index]);
+              index += 1;
+            }
+            const cells = rows.map((row) =>
+              row
+                .trim()
+                .replace(/^\|/, "")
+                .replace(/\|$/, "")
+                .split("|")
+                .map((cell) => cell.trim())
+            );
+            const header = cells[0] || [];
+            const body = cells.slice(2);
+            blocks.push(
+              `<table><thead><tr>${header
+                .map((cell) => `<th>${renderInline(cell)}</th>`)
+                .join("")}</tr></thead><tbody>${body
+                .map(
+                  (row) =>
+                    `<tr>${row
+                      .map((cell) => `<td>${renderInline(cell)}</td>`)
+                      .join("")}</tr>`
+                )
+                .join("")}</tbody></table>`
+            );
+            continue;
+          }
+
+          if (/^-\s+/.test(line)) {
+            const items = [];
+            while (index < bodyLines.length && /^-\s+/.test(bodyLines[index])) {
+              items.push(bodyLines[index].replace(/^-\s+/, "").trim());
+              index += 1;
+            }
+            blocks.push(`<ul>${items.map((item) => `<li>${renderInline(item)}</li>`).join("")}</ul>`);
+            continue;
+          }
+
+          if (/^\d+\.\s+/.test(line)) {
+            const items = [];
+            while (index < bodyLines.length && /^\d+\.\s+/.test(bodyLines[index])) {
+              items.push(bodyLines[index].replace(/^\d+\.\s+/, "").trim());
+              index += 1;
+            }
+            blocks.push(`<ol>${items.map((item) => `<li>${renderInline(item)}</li>`).join("")}</ol>`);
+            continue;
+          }
+
+          const paragraph = [];
+          while (
+            index < bodyLines.length &&
+            bodyLines[index].trim() &&
+            !bodyLines[index].startsWith("## ") &&
+            !bodyLines[index].startsWith("```") &&
+            !/^!\[/.test(bodyLines[index]) &&
+            !/^-\s+/.test(bodyLines[index]) &&
+            !/^\d+\.\s+/.test(bodyLines[index]) &&
+            !(
+              bodyLines[index].includes("|") &&
+              index + 1 < bodyLines.length &&
+              /^\s*\|?\s*:?-{3,}/.test(bodyLines[index + 1])
+            )
+          ) {
+            paragraph.push(bodyLines[index].trim());
+            index += 1;
+          }
+          blocks.push(`<p>${renderInline(paragraph.join(" "))}</p>`);
+        }
+
+        return blocks.join("\n").replace(/\n<section /g, "\n</section>\n<section ") + "\n</section>";
+      }
+
+      fetch(markdownUrl)
+        .then((response) => {
+          if (!response.ok) throw new Error(`Unable to load article: ${response.status}`);
+          return response.text();
+        })
+        .then((markdown) => {
+          document.getElementById("article-content").innerHTML = renderMarkdown(markdown);
+        })
+        .catch((error) => {
+          document.getElementById("article-content").innerHTML =
+            `<p class="error">${escapeHtml(error.message)}</p>`;
+        });
+    </script>
+  </body>
+</html>
