@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Substack Export</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --text: #111827;
+        --muted: #4b5563;
+        --line: #d1d5db;
+        --bg: #f8fafc;
+        --panel: #ffffff;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: center;
+        padding: 14px;
+        background: rgba(248, 250, 252, 0.95);
+        border-bottom: 1px solid var(--line);
+        backdrop-filter: blur(8px);
+      }
+
+      button {
+        border: 1px solid #111827;
+        background: #111827;
+        color: #ffffff;
+        border-radius: 6px;
+        padding: 10px 14px;
+        font: 700 14px Arial, Helvetica, sans-serif;
+        cursor: pointer;
+      }
+
+      .status {
+        min-width: 260px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      #copy-source {
+        max-width: 820px;
+        margin: 36px auto;
+        padding: 56px;
+        background: var(--panel);
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 42px;
+        line-height: 1.08;
+      }
+
+      .subtitle {
+        margin: 0 0 28px;
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 1.45;
+        font-style: italic;
+      }
+
+      h2 {
+        margin: 42px 0 14px;
+        font-size: 27px;
+        line-height: 1.2;
+      }
+
+      p, li {
+        font-size: 18px;
+        line-height: 1.65;
+      }
+
+      p {
+        margin: 0 0 18px;
+      }
+
+      a {
+        color: #0f4c81;
+        text-decoration: underline;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        margin: 28px auto;
+      }
+
+      figure {
+        margin: 30px 0;
+      }
+
+      pre {
+        overflow: auto;
+        padding: 18px;
+        background: #f3f4f6;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+
+      code {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 0.95em;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 24px 0 30px;
+        font-size: 16px;
+      }
+
+      th, td {
+        border: 1px solid var(--line);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f3f4f6;
+        font-weight: 700;
+      }
+
+      blockquote {
+        margin: 24px 0;
+        padding-left: 18px;
+        border-left: 4px solid var(--line);
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <button type="button" id="copy-button">Copy rich HTML for Substack</button>
+      <span class="status" id="status">Loading article...</span>
+    </div>
+    <article id="copy-source"></article>
+
+    <script>
+      const markdownUrl = "article.md?v=linkedin-renderfix";
+      const publicBase = "https://naveenvenk17.github.io/macroplacement-article/";
+
+      function escapeHtml(value) {
+        return value
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function renderInline(value) {
+        return escapeHtml(value)
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/_([^_]+)_/g, "<em>$1</em>")
+          .replace(
+            /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+            '<a href="$2">$1</a>'
+          );
+      }
+
+      function imageSrc(src) {
+        if (/^https?:\/\//.test(src)) return src;
+        const normalized = src.replace(
+          /^D:\/startup\/MP-contest\/docs\/substack_assets\//,
+          "substack_assets/"
+        );
+        return new URL(normalized, publicBase).href;
+      }
+
+      function renderMarkdown(markdown) {
+        const lines = markdown.split(/\r?\n/);
+        const blocks = [];
+        let index = 0;
+
+        while (index < lines.length) {
+          const line = lines[index];
+
+          if (!line.trim()) {
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("# ")) {
+            blocks.push(`<h1>${renderInline(line.replace(/^#\s+/, "").trim())}</h1>`);
+            index += 1;
+            continue;
+          }
+
+          if (/^_.*_$/.test(line.trim())) {
+            blocks.push(`<p class="subtitle">${renderInline(line.trim())}</p>`);
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("## ")) {
+            blocks.push(`<h2>${renderInline(line.replace(/^##\s+/, "").trim())}</h2>`);
+            index += 1;
+            continue;
+          }
+
+          if (line.startsWith("```")) {
+            const codeLines = [];
+            index += 1;
+            while (index < lines.length && !lines[index].startsWith("```")) {
+              codeLines.push(lines[index]);
+              index += 1;
+            }
+            if (index < lines.length) index += 1;
+            blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+            continue;
+          }
+
+          if (/^!\[/.test(line)) {
+            const match = line.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+            if (match) {
+              blocks.push(
+                `<figure><img src="${imageSrc(match[2])}" alt="${escapeHtml(match[1])}" /></figure>`
+              );
+            }
+            index += 1;
+            continue;
+          }
+
+          if (
+            line.includes("|") &&
+            index + 1 < lines.length &&
+            /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])
+          ) {
+            const rows = [];
+            while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+              rows.push(lines[index]);
+              index += 1;
+            }
+            const cells = rows.map((row) =>
+              row
+                .trim()
+                .replace(/^\|/, "")
+                .replace(/\|$/, "")
+                .split("|")
+                .map((cell) => cell.trim())
+            );
+            const header = cells[0] || [];
+            const body = cells.slice(2);
+            blocks.push(
+              `<table><thead><tr>${header
+                .map((cell) => `<th>${renderInline(cell)}</th>`)
+                .join("")}</tr></thead><tbody>${body
+                .map(
+                  (row) =>
+                    `<tr>${row
+                      .map((cell) => `<td>${renderInline(cell)}</td>`)
+                      .join("")}</tr>`
+                )
+                .join("")}</tbody></table>`
+            );
+            continue;
+          }
+
+          if (/^-\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^-\s+/.test(lines[index])) {
+              items.push(lines[index].replace(/^-\s+/, "").trim());
+              index += 1;
+            }
+            blocks.push(`<ul>${items.map((item) => `<li>${renderInline(item)}</li>`).join("")}</ul>`);
+            continue;
+          }
+
+          if (/^\d+\.\s+/.test(line)) {
+            const items = [];
+            while (index < lines.length && /^\d+\.\s+/.test(lines[index])) {
+              items.push(lines[index].replace(/^\d+\.\s+/, "").trim());
+              index += 1;
+            }
+            blocks.push(`<ol>${items.map((item) => `<li>${renderInline(item)}</li>`).join("")}</ol>`);
+            continue;
+          }
+
+          const paragraph = [];
+          while (
+            index < lines.length &&
+            lines[index].trim() &&
+            !lines[index].startsWith("# ") &&
+            !lines[index].startsWith("## ") &&
+            !lines[index].startsWith("```") &&
+            !/^!\[/.test(lines[index]) &&
+            !/^-\s+/.test(lines[index]) &&
+            !/^\d+\.\s+/.test(lines[index]) &&
+            !(
+              lines[index].includes("|") &&
+              index + 1 < lines.length &&
+              /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])
+            )
+          ) {
+            paragraph.push(lines[index].trim());
+            index += 1;
+          }
+          blocks.push(`<p>${renderInline(paragraph.join(" "))}</p>`);
+        }
+
+        return blocks.join("\n");
+      }
+
+      function plainTextFromHtml(element) {
+        return element.innerText.replace(/\n{3,}/g, "\n\n").trim();
+      }
+
+      async function copyRichHtml() {
+        const article = document.getElementById("copy-source");
+        const html = article.innerHTML;
+        const text = plainTextFromHtml(article);
+
+        if (navigator.clipboard && window.ClipboardItem) {
+          const item = new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
+          });
+          await navigator.clipboard.write([item]);
+        } else {
+          const range = document.createRange();
+          range.selectNodeContents(article);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.execCommand("copy");
+          selection.removeAllRanges();
+        }
+
+        document.getElementById("status").textContent = "Copied. Paste into Substack editor.";
+      }
+
+      fetch(markdownUrl)
+        .then((response) => {
+          if (!response.ok) throw new Error("Could not load article.md");
+          return response.text();
+        })
+        .then((markdown) => {
+          document.getElementById("copy-source").innerHTML = renderMarkdown(markdown);
+          document.getElementById("status").textContent = "Ready.";
+        })
+        .catch((error) => {
+          document.getElementById("status").textContent = error.message;
+        });
+
+      document.getElementById("copy-button").addEventListener("click", copyRichHtml);
+    </script>
+  </body>
+</html>
