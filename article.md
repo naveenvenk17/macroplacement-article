@@ -65,11 +65,9 @@ This moved the system into the low 1.2 range. More importantly, it established t
 
 ## Phase 2: Auto-Research Harness
 
-Inspired by Andrej Karpathy's framing of auto-research, we built an experiment harness around the placer: propose a candidate, run it, read the measurements, and continue from the result.
+Inspired by Andrej Karpathy's framing of auto-research, we wrapped the placer in a simple experiment loop: propose a change, run the suite, parse the metrics, and promote only if the full result improved.
 
-The harness was not a model and not a replacement for engineering judgment. It was the measurement system around the research. It generated candidates, launched evaluations, parsed wirelength, density, congestion, proxy, runtime, and overlap results, compared against the current baseline, and promoted only complete improvements.
-
-The promotion gate was physical-design specific: exact proxy, zero hard overlaps, runtime safety, and full-suite behavior.
+The harness tracked proxy, wirelength, density, congestion, overlap count, and runtime for every candidate. Invalid runs, timeouts, and partial-suite wins were rejected.
 
 ```text
 propose candidate
@@ -82,42 +80,25 @@ promote only full-suite improvements
 
 ![Auto-research score reduction](substack_assets/best_proxy_evolution.png)
 
-The graph above is from the early auto-research phase. It shows why the harness mattered. Progress came from repeated full-suite measurements, not from manually judging whether a placement looked cleaner.
+The graph is from the early auto-research phase. It shows the main point: progress came from repeated full-suite measurements, not from judging placements visually.
 
-The harness also changed how we talked about experiments. Every idea had to answer:
+## What Exactly Did We Do and How Did We Do It?
 
-- Which designs improved?
-- Which designs regressed?
-- Did congestion move down or only wirelength?
-- Did the average improve after all designs completed?
-- Was the runtime still inside the budget?
-- Did the candidate remain legal under the same precision as the scorer?
+We could not call the public scorer after every possible move, so we built an incremental proxy evaluator for local repair. For each trial macro move, it updated only the affected state:
 
-That last point became more important than expected.
+- HPWL for nets touched by the moved macro,
+- density for grid cells whose overlap area changed,
+- congestion from routing-demand and macro-blockage caches,
+- hard-macro overlap checks before acceptance,
+- undo state so rejected moves restored the previous proxy state.
 
-## Phase 3: Exact Proxy Evaluation
-
-The exact public scorer was too expensive to call blindly for every tiny move. To make local repair useful, we needed a faster evaluator that still followed the same objective closely.
-
-The incremental evaluator became one of the core pieces of the flow. For a single macro move, it updated the affected pieces of the objective rather than recomputing the whole placement from scratch:
-
-- HPWL from affected net bounding boxes,
-- density from changed grid-cell overlap area,
-- congestion from routing and macro blockage caches,
-- undo state for rejected moves,
-- and hard-macro overlap checks before exact acceptance.
-
-This enabled the style of optimization we wanted: conservative accept-only repair, but with enough candidate volume to matter.
-
-It also forced us to match the evaluator's numerical world. A placement that is legal in a float64 local check can become an overlap in the official float32 scorer if two macro edges are separated by only a sub-float32 margin. We moved the legality and grid calculations toward scorer-compatible float32 behavior and used explicit safety gaps so "zero overlaps" locally meant zero overlaps in the official scorer's precision.
-
-That was not a cosmetic fix. In a contest where zero overlaps were required, precision was part of the algorithm.
+A move was kept only if the measured proxy improved. The subtle part was numerical compatibility. A placement that looked legal in float64 local geometry could still become an overlap after the official float32 scorer rounded positions. We moved legality and grid calculations toward scorer-compatible float32 behavior and added explicit clearance gaps, so "zero overlaps" locally matched zero overlaps in final scoring.
 
 ## Phase 4: Multi-Start Search
 
-The first version of multi-start was obvious: generate multiple starts, run repair, pick the best. That helped, but blind restarts waste time. Under a one-hour benchmark budget, every start has an opportunity cost.
+The naive multi-start version was simple: generate starts, run repair, pick the best. That helped, but blind restarts waste the one-hour benchmark budget.
 
-The version that worked was closer to multi-seam search. Instead of random restarts, we created several physically different seams into the search space, prescored them, and spent serious repair time only on the most promising basins.
+The useful version was multi-seam search. We generated physically different starting basins, legalized them, prescored proxy and congestion, and sent only the best few into long repair.
 
 The seed portfolio included:
 
@@ -157,7 +138,7 @@ spend repair time on the winners
 fall back if a candidate source fails
 ```
 
-This is how multi-start became useful. It was not "try many random placements." It was "create several physically meaningful basins, then let the exact proxy decide which basin deserves time."
+That made multi-start a seed-selection problem rather than a random-restart problem.
 
 ## Phase 5: Synthetic Clearance
 
@@ -205,7 +186,7 @@ The practical settings reflected that priority:
 | Step schedule | 3 down to 0.0625 | Start coarse, finish fine. |
 | Accept rule | Tiny exact improvement required | Avoid keeping moves that only look useful in a surrogate. |
 
-This was the phase where the system became less like a single placer and more like a placement research engine. It had a seed tournament, exact local repair, soft-macro congestion control, and a hard runtime allocator.
+At this point, the flow had the pieces needed for measured repair: seed selection, exact local repair, soft-macro congestion control, and runtime allocation.
 
 ![Macro placement movement](substack_assets/ibm01.gif)
 
@@ -227,15 +208,11 @@ That did not replace final evaluation. It changed proposal pressure. A candidate
 
 This distinction was important. The internal objective could bias the search toward opening routing capacity. The official proxy still decided whether the placement improved.
 
-The promoted congestion-weighted approach reached a full-suite average around 1.0471 with all designs valid and under the time cap. That was a major transition: the system had moved from "legal and locally improved" to "congestion-directed and runtime-controlled."
+The promoted congestion-weighted approach reached a full-suite average around 1.0471 with all designs valid and under the time cap. The useful change was proposal ranking, not the final scoring rule.
 
 ## Phase 8: Plateau Escape
 
-After enough exact repair, the optimizer reached plateaus. The failure mode was not mysterious: a pass could evaluate a large number of legal candidates and accept very few.
-
-That is when move telemetry became useful.
-
-In one live exact-search snapshot, eight parallel design workers reached round 8 with 14 accepted moves in the current round: 4 coordinate moves, 4 gradient moves, 2 hotspot-escape moves, 2 surgical moves, and 2 swap moves. The cumulative accepted mix in that run was 74 coordinate, 49 gradient, 26 hotspot escape, 17 surgical, and 28 swap moves.
+After enough exact repair, the optimizer reached plateaus: many legal candidates were evaluated, but very few were accepted. At that point, running the same move class longer was not enough.
 
 The later GPU logs made the scale clearer:
 
@@ -246,9 +223,7 @@ The later GPU logs made the scale clearer:
 | ibm17 | 1.297173 | 3 | 13,642 | 250,604 | Pass 2 accepted only 5 moves from 7,676 evaluated. |
 | ibm18 | 1.253754 | 7 | 10,242 | 420,705 | Continued improving longer. |
 
-Across the GPU repair logs, the system evaluated 11,674,931 candidates and accepted 229,169 moves, an overall accept rate of 1.96%. That is the real plateau picture: most candidates must be rejected, but the accepted tail still moves the score when the proposal classes are good.
-
-That table changed what we tried next. If the accept rate collapsed, running the same move class longer was usually not enough. We needed a different proposal distribution.
+Across the GPU repair logs, the system evaluated 11,674,931 candidates and accepted 229,169 moves, an accept rate of 1.96%. That telemetry drove the next step: change the proposal distribution, not the acceptance rule.
 
 The plateau escape move classes were:
 
@@ -267,40 +242,30 @@ The evaluator stayed strict. We changed how candidates were generated, not what 
 
 ## Phase 9: GPU Acceleration
 
-Early in the contest, it became clear that the high-leverage path would need GPU acceleration.
+Early in the contest, we assumed GPU throughput would decide how many useful candidates we could evaluate inside one hour. Development runs used NVIDIA L4 workers; the public evaluation environment listed an NVIDIA RTX 6000 Ada 48GB with AMD EPYC 9655P CPU, 16 cores, and 100GB memory. The contest Docker base was `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime`.
 
-The one-hour budget was not just an operational constraint. It defined the algorithm. A placer that can rank more physically meaningful candidates and spend exact scoring on better proposals has a structural advantage.
+The main change was moving candidate generation and ranking out of Python loops:
 
-GPU acceleration helped in three ways:
+- overlap push-apart and tensor-heavy proposal scoring moved to PyTorch CUDA tensors,
+- per-design candidate sources ran in parallel where hardware allowed,
+- Triton kernels were tested for batched top-k candidate ranking,
+- the exact proxy evaluator stayed as the legality and acceptance gate.
 
-1. It increased candidate volume before exact scoring.
-2. It made per-design scheduling and parallel candidate sources practical.
-3. It moved hot proposal and routing work below the Python layer.
-
-In a congestion-heavy GPU repair setting, the proposal stage used 80 macros and top-160 proposals per macro, or 12,800 ranked candidate slots before exact accept/reject filtering. In Triton experiments, candidate batches reached 8,192 to 16,384 proposals per pass.
-
-The stable division was:
-
-```text
-GPU / CUDA / Triton: generate and rank candidates
-exact evaluator: enforce legality and accept improvements
-```
-
-This was the right split. GPU acceleration did not remove exact scoring. It made exact scoring more valuable by feeding it better candidates.
+In a congestion-heavy GPU repair setting, the proposal stage ranked 80 macros x top-160 proposals, or 12,800 candidate slots, before exact accept/reject filtering. Triton experiments batched 8,192 to 16,384 proposals per pass. The GPU work did not replace scoring; it made scoring spend time on better candidates.
 
 ## Phase 10: Xplace-RA Route-Aware Seeds
 
-Xplace became useful when we treated it as a route-aware basin generator, not as a universal replacement for our repair flow.
+Xplace is a GPU-accelerated analytical placer from CUHK EDA. We used a patched Xplace checkout as a route-aware seed generator, not as the final scorer. This is different from XLA, or Accelerated Linear Algebra; XLA was not part of this flow.
 
-The final selector was a portfolio. For a design, it could consider:
+In our flow, Xplace-RA meant:
 
-- the best exact-repair candidate,
-- several Xplace-RA candidates generated with different safety margins,
-- and fallback candidates if the route-aware path failed.
+- export the current benchmark through the LEF/DEF bridge,
+- run patched Xplace to produce route-aware seed placements,
+- map the result back into the challenge placement format,
+- gate it with overlap, density, congestion, and finite-coordinate checks,
+- run exact-scored repair only if the seed beat the baseline candidate.
 
-Each candidate source was checked by generic legality and metric gates. The selector did not branch on benchmark names. It generated route-aware candidates through the patched Xplace path, converted through the LEF/DEF bridge, scored the candidates, then spent the remaining budget on the measured winner.
-
-This moved the system from the 1.0x range into the sub-1.0 range:
+The score progression looked like this:
 
 | Stage | Average proxy | What changed |
 | --- | ---: | --- |
@@ -318,23 +283,22 @@ This moved the system from the 1.0x range into the sub-1.0 range:
 
 The submit-ready selector was especially important because it stayed generic: 17 / 17 designs valid, 0 / 17 overlap failures, average wirelength 0.075941, density 0.519471, congestion 1.251706, and a 3300-second placement cap.
 
-The Xplace-RA path also taught a practical lesson about GPU reproducibility. The patched Xplace dependency used CUDA kernels for wirelength, density, routing, and legalization-related primitives. The packaging had to make the runtime explicit: Docker image, patched Xplace dependency, correct Python, parser patch, and GPU-visible execution. When the route-aware path was unavailable or failed metric gates, the selector had to fall back safely.
+The route-aware build image used `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel`. The Docker path cloned `cuhk-eda/Xplace` into `/opt/Xplace`, copied our patch bundle on top, built it with CUDA architecture 89, and set `EVO_XRA_XPLACE_ROOT=/opt/Xplace`. If patched Xplace was missing or failed gates, the selector used the in-house exact-repair candidate instead.
 
 That fallback logic was part of the algorithm. A strong optional candidate source is useful only if failure does not poison the final placement.
 
 ## Phase 11: Triton Candidate Ranking
 
-Triton was a kernel-level acceleration campaign for candidate ranking. It compiled, ran, and produced candidates, but we did not treat that as enough.
+Triton was used as an experimental kernel path for candidate ranking. The goal was specific: batch many proposals, rank them on GPU, and feed only promising candidates into the exact evaluator.
 
-The first top-k candidate-ranking modes were not promoted because the baseline was stronger. The important learning was about preserving reliable search behavior:
+The first modes did not beat the baseline, so Triton stayed gated:
 
-- add Triton-ranked candidates as a union with baseline direction candidates,
-- keep baseline moves available,
-- require extra Triton candidates to clear an objective margin,
-- keep non-Triton baseline runs in every comparison,
-- and promote only after full-suite validation beats the baseline.
+- keep baseline direction candidates,
+- union Triton-ranked candidates with the baseline set,
+- require an objective margin before adding extra Triton candidates,
+- compare every panel against non-Triton baseline runs.
 
-This is a small but important point. Faster candidate generation can hurt if it displaces reliable candidates. The acceleration has to improve accepted moves, not just produce more proposals.
+The lesson was simple: faster candidate generation helps only when it increases accepted improvements.
 
 ## The Final System
 
@@ -355,26 +319,22 @@ The final flow was best understood as a measured search system:
 
 ![All-17 progress](substack_assets/rl_all17_progress.png)
 
-This is why the final score was not a surprise jump. It was the result of many controlled transitions: basic legal placement, exact repair, auto-research promotion, soft-macro congestion control, multi-start seed tournaments, runtime-aware GPU repair, route-aware Xplace candidates, and strict validation.
+The final flow was a portfolio: legal seed generation, exact repair, congestion-weighted proposals, GPU candidate ranking, Xplace route-aware seeds where useful, and guarded Triton experiments.
 
 ## What We Learned
 
-The main lesson is that macro placement rewards measured iteration.
+Macro placement is not solved by a floorplan that only looks clean. The useful question is whether the placement leaves routing capacity where the netlist needs it.
 
-A visually clean floorplan is only the starting point. The real question is whether the placement gives the router capacity where the netlist needs it. In this challenge, the proxy made that question measurable enough to optimize directly.
+Our main takeaways were:
 
-The technical lessons were:
-
-- Build the auto-research harness before chasing too many heuristics.
-- Read proxy components, not only the scalar score.
-- Treat congestion as a first-class target once HPWL is under control.
-- Use multi-start only when the starts represent different physical basins.
-- Use synthetic clearance to create routing slack, but let exact scoring decide what survives.
-- Move soft macros seriously; they are low-risk congestion actuators.
-- Handle plateaus by changing candidate classes, not by accepting worse placements.
-- Use GPU acceleration to improve proposal quality and candidate volume.
-- Keep Xplace, Triton, and gradient descent behind legality and exact-score gates.
-- Match the scorer's numerical precision before claiming zero overlaps.
+- Optimize the proxy components, not just the scalar score.
+- Treat congestion as the primary target once HPWL is low.
+- Use multi-start only when starts represent different physical basins.
+- Keep soft macros in the repair loop; they are useful congestion actuators.
+- Escape plateaus by changing proposal classes, not by loosening acceptance.
+- Use GPU acceleration to rank more candidates, while exact scoring decides what survives.
+- Keep Xplace, Triton, and gradient descent behind legality and full-suite validation.
+- Match scorer precision before claiming zero overlaps.
 
 The final verified leaderboard score was a rank-1 average proxy cost of 0.9507 with zero hard-macro overlaps. The technical process behind that score was straightforward in principle: propose broadly, score exactly, accept carefully, and validate across the full benchmark suite.
 
