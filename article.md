@@ -30,6 +30,8 @@ Lower is better.
 | Density | Local concentration of objects. | Dense regions leave less freedom for placement and routing. |
 | Congestion | Routing demand relative to routing supply. | Overloaded routing bins are where visually clean floorplans become expensive. |
 
+For the exact scorer definitions, see the challenge [SETUP.md](https://github.com/partcleda/macro-place-challenge-2026/blob/main/SETUP.md#computing-proxy-cost) and the [TILOS MacroPlacement proxy-cost documentation](https://github.com/TILOS-AI-Institute/MacroPlacement/tree/main/Docs/ProxyCost), which describe normalized HPWL, top-10% grid density, and top-5% routing congestion with smoothing.
+
 The benchmarks gave us hard macros, soft macros, a canvas, and a netlist. Hard macros had to stay inside the canvas and could not overlap. The solution also had to run under the contest time limit for every benchmark.
 
 At the start, it was tempting to think of the objective as a balanced wirelength, density, and congestion problem. The component tables quickly corrected that assumption.
@@ -45,6 +47,10 @@ In strong late-stage runs, wirelength was already around 0.07 to 0.08. Congestio
 That is the point where the optimization target changed. We still had to protect HPWL, but the score was moving through density and congestion.
 
 ![IBM17 heatmap metrics](substack_assets/ibm17_heatmap_metrics.png)
+
+## Evolution of the Approach
+
+With the objective and component bias clear, the implementation evolved through the following phases.
 
 ## Phase 1: Baseline Macro Placement
 
@@ -82,7 +88,7 @@ promote only full-suite improvements
 
 The graph is from the early auto-research phase. It shows the main point: progress came from repeated full-suite measurements, not from judging placements visually.
 
-## What Exactly Did We Do and How Did We Do It?
+## Phase 3: Fast Runtime Proxy Evaluation
 
 We could not call the public scorer after every possible move, so we built an incremental proxy evaluator for local repair. For each trial macro move, it updated only the affected state:
 
