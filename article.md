@@ -308,24 +308,9 @@ The lesson was simple: faster candidate generation helps only when it increases 
 
 ## The Final System
 
-The final flow was best understood as a measured search system:
+The runtime-controlled flow looked like this:
 
-1. Start from legal and route-aware seed basins.
-2. Use multi-start and multi-seam portfolio generation, not blind random restarts.
-3. Prescore seeds by exact proxy components.
-4. Apply synthetic clearance when it creates useful routing slack.
-5. Legalize hard macros in scorer-compatible precision.
-6. Spend most of the time on interleaved soft and hard coordinate descent.
-7. Bias proposal pressure toward congestion when congestion dominates the score.
-8. Use GPU/CUDA ranking to widen candidate volume.
-9. Use Xplace-RA as an optional route-aware basin generator.
-10. Keep Triton behind union, priority, and full-suite validation gates.
-11. Select the best legal measured candidate source per design.
-12. Return zero-overlap placements inside the runtime budget.
-
-![All-17 progress](substack_assets/rl_all17_progress.png)
-
-The final flow was a portfolio: legal seed generation, exact repair, congestion-weighted proposals, GPU candidate ranking, Xplace route-aware seeds where useful, and guarded Triton experiments.
+![Final system flow](substack_assets/final_system_flow.png)
 
 ## What We Learned
 
