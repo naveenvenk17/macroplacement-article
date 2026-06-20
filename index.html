@@ -24,7 +24,7 @@
     </main>
 
     <script>
-      const markdownUrl = "article.md?v=linkedin-footer";
+      const markdownUrl = "article.md?v=linkedin-renderfix";
 
       function escapeHtml(value) {
         return value
@@ -42,13 +42,13 @@
 
       function renderInline(value) {
         return escapeHtml(value)
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/_([^_]+)_/g, "<em>$1</em>")
           .replace(
             /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
             '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-          )
-          .replace(/`([^`]+)`/g, "<code>$1</code>")
-          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-          .replace(/_([^_]+)_/g, "<em>$1</em>");
+          );
       }
 
       function imageSrc(src) {
